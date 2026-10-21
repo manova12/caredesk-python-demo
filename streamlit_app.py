@@ -14,7 +14,7 @@ APP_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("CAREDESK_DB_PATH", APP_DIR / "data" / "caredesk.sqlite3"))
 DEPARTMENTS = [
     "General Medicine", "Dermatology", "Orthopedics",
-    "Gastroenterology", "Cardiology", "Neurology",
+    "Gastroenterology", "Neurology", "Cardiology",
 ]
 DOCTORS = {
     "A. Mehta": {"dept": "General Medicine", "days": {1, 2, 3, 4, 5, 6}, "start": 9, "end": 13},
@@ -62,7 +62,29 @@ p, label, [data-testid="stCaption"] { color:var(--muted); }
 .care-section-title { font-family:Georgia,serif; font-size:2rem; color:#1a363d; margin:.15rem 0 .65rem; }
 .care-safety { background:#fff9ef; border:1px solid #f0dfc5; border-radius:14px; padding:1rem 1.2rem; color:#74552b; }
 .care-muted-small { font-size:.78rem; color:#849090; }
-@media (max-width:700px) { [data-testid="stMainBlockContainer"] { padding-left:1rem; padding-right:1rem; } .care-hero-title { font-size:2.7rem; } }
+.st-key-home-hero { max-width:1320px; margin:0 auto 1.25rem; padding:2.7rem 0 2.3rem; border-radius:0; background:radial-gradient(ellipse at 78% 24%,#e9f4ec 0,transparent 38%),linear-gradient(116deg,#f7f8f4 2%,#f2f6f1 100%); }
+.care-hero-title { font-family:Georgia,"Times New Roman",serif!important; font-weight:500!important; color:#17333a!important; font-size:clamp(2.35rem,4vw,3.25rem)!important; line-height:1.08!important; letter-spacing:-.075rem!important; max-width:34rem; margin:0 0 .55rem!important; }
+[data-testid="stMarkdownContainer"] h1.care-hero-title { font-family:Georgia,"Times New Roman",serif!important; font-weight:500!important; }
+.care-hero-sub { font-family:Georgia,"Times New Roman",serif; color:#526b70; font-size:clamp(1.25rem,2.1vw,1.7rem); line-height:1.25; margin:.5rem 0 0; }
+.care-body { color:#526b70; font-size:1rem; line-height:1.75; max-width:33rem; margin:1.05rem 0 1.45rem; }
+.care-eyebrow { display:flex; align-items:center; gap:.65rem; color:#087c72; font-size:10px; font-weight:800; letter-spacing:.14em; }
+.care-hero-eyebrow::before { content:""; width:7px; height:7px; border-radius:50%; background:#d98d72; box-shadow:0 0 0 4px #f4e6df; }
+.care-secondary-link { color:#07655e; font-size:13px; font-weight:700; text-decoration:none; border-bottom:1px solid #9dc6bb; padding:5px 0; }
+.care-secondary-link:hover { color:#087c72; }
+.care-visit-card { min-height:330px; padding:1.65rem; display:flex; flex-direction:column; justify-content:center; }
+.care-visit-icon { display:grid; place-items:center; width:48px; height:48px; margin:0 0 1.2rem; color:#087c72; background:#e5f4ef; border-radius:14px; font-size:24px; }
+.care-visit-card .care-step { font-size:9px; letter-spacing:.14em; }
+.care-visit-card .care-panel-title { font-size:1.55rem; margin:.45rem 0 .55rem; }
+.care-demo-note { color:#87928e; font-size:.68rem; line-height:1.45; text-align:center; margin-top:.8rem; }
+.care-steps-strip { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:center; gap:1.2rem; padding:1rem 1.55rem; background:#fff; border:1px solid var(--line); border-radius:13px; box-shadow:0 8px 24px rgba(25,55,48,.035); }
+.care-step-item { display:flex; align-items:center; gap:.75rem; min-width:0; }
+.care-step-badge { flex:0 0 34px; height:34px; display:grid; place-items:center; color:#087c72; background:#e5f4ef; border-radius:50%; font-size:11px; font-weight:800; }
+.care-step-copy b { display:block; color:#203a40; font-size:12px; line-height:1.3; }
+.care-step-copy span { display:block; color:#849090; font-size:10px; line-height:1.4; margin-top:2px; }
+.st-key-visit-card [data-testid="stVerticalBlockBorderWrapper"] { min-height:330px; }
+.st-key-visit-card [data-testid="stBaseButton-primary"] { width:100%; }
+.st-key-home-hero [data-testid="stBaseButton-primary"] { box-shadow:0 5px 14px #087c7226; }
+@media (max-width:700px) { [data-testid="stMainBlockContainer"] { padding-left:1rem; padding-right:1rem; } .st-key-home-hero { padding:1.8rem 1rem; } .care-hero-title { font-size:2.35rem!important; } .care-steps-strip { grid-template-columns:1fr; gap:.8rem; } .st-key-visit-card [data-testid="stVerticalBlockBorderWrapper"] { min-height:0; } }
 </style>
 """
 
@@ -82,40 +104,38 @@ def site_header() -> None:
 
 def home_page() -> None:
     site_header()
-    left, right = st.columns([1.3, .9], gap="large", vertical_alignment="center")
-    with left:
-        st.markdown('<div class="care-eyebrow">● Patient care, made easier</div>', unsafe_allow_html=True)
-        st.markdown('<h1 class="care-hero-title">KUMAR CLINIC AND PHARMACY</h1>', unsafe_allow_html=True)
-        st.markdown('<div class="care-hero-sub">A clear next step for your health.</div>', unsafe_allow_html=True)
-        st.markdown('<div class="care-body">Tell us what you need help with. We’ll guide you to a suitable service and help you find an appointment that works for you.</div>', unsafe_allow_html=True)
-        st.write("")
-        cta, explore = st.columns([1, 1.1], vertical_alignment="center")
-        with cta:
-            st.page_link(PAGES["booking"], label="Book an appointment", icon=":material/arrow_forward:")
-        with explore:
-            st.page_link(PAGES["booking"], label="Explore care services")
-    with right:
-        with st.container(border=True):
-            st.markdown('<div class="care-step">YOUR VISIT STARTS HERE</div>', unsafe_allow_html=True)
-            st.markdown('<div class="care-panel-title">Find the care you need</div>', unsafe_allow_html=True)
-            st.write("Choose a service, share a few details, and review your appointment before booking.")
-            st.page_link(PAGES["booking"], label="Start booking", icon=":material/arrow_outward:")
-            st.page_link(PAGES["lookup"], label="Already booked? Find your demo appointment")
-            st.markdown('<div class="care-muted-small">This is a demonstration. Bookings use a separate demo database. Emails are previews only.</div>', unsafe_allow_html=True)
+    with st.container(key="home-hero"):
+        left, right = st.columns([1.05, .75], gap="large", vertical_alignment="center")
+        with left:
+            st.markdown('<div class="care-eyebrow care-hero-eyebrow">Patient care, made easier</div>', unsafe_allow_html=True)
+            st.markdown('<h1 class="care-hero-title">KUMAR CLINIC AND PHARMACY</h1>', unsafe_allow_html=True)
+            st.markdown('<div class="care-hero-sub">A clear next step for your health.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="care-body">Tell us what you need help with. We’ll guide you to a suitable service and help you find an appointment that works for you.</div>', unsafe_allow_html=True)
+            cta, explore = st.columns([1, 1.05], vertical_alignment="center")
+            with cta:
+                if st.button("Book an appointment  →", type="primary", key="home_book", use_container_width=True):
+                    st.switch_page(PAGES["booking"])
+            with explore:
+                st.markdown('<a class="care-secondary-link" href="#care-services">Explore care services</a>', unsafe_allow_html=True)
+        with right:
+            with st.container(border=True, key="visit-card"):
+                st.markdown('<div class="care-visit-icon" aria-hidden="true">▦</div><div class="care-step">YOUR VISIT STARTS HERE</div><div class="care-panel-title">Find the care you need</div>', unsafe_allow_html=True)
+                st.write("Choose a service, share a few details, and review your appointment before booking.")
+                if st.button("Start booking  ↗", type="primary", key="home_start_booking", use_container_width=True):
+                    st.switch_page(PAGES["booking"])
+                if st.button("Already booked? Find your demo appointment", key="home_lookup", use_container_width=True):
+                    st.switch_page(PAGES["lookup"])
+                st.markdown('<div class="care-demo-note">This is a demonstration. Bookings use a separate demo database. Emails are previews only.</div>', unsafe_allow_html=True)
 
-    st.write("")
-    with st.container(border=True):
-        cols = st.columns(3)
-        for col, number, title, detail in zip(
-            cols,
-            ("01", "02", "03"),
-            ("Guided choice", "Your preferred time", "Human care"),
-            ("Find a department with a little help", "Choose from a doctor’s available hours", "Your care plan stays with your clinician"),
-        ):
-            with col:
-                st.markdown(f'<div class="care-step">{number}</div><strong>{title}</strong><br><span class="care-muted-small">{detail}</span>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="care-steps-strip">'
+        '<div class="care-step-item"><span class="care-step-badge">01</span><div class="care-step-copy"><b>Guided choice</b><span>Find a department with a little help</span></div></div>'
+        '<div class="care-step-item"><span class="care-step-badge">02</span><div class="care-step-copy"><b>Your preferred time</b><span>Choose from a doctor’s available hours</span></div></div>'
+        '<div class="care-step-item"><span class="care-step-badge">03</span><div class="care-step-copy"><b>Human care</b><span>Your care plan stays with your clinician</span></div></div>'
+        '</div>', unsafe_allow_html=True,
+    )
 
-    st.markdown('<div class="care-eyebrow" style="margin-top:2.2rem">Care that meets you where you are</div><div class="care-section-title">Explore our services</div><p>Choose a department to start booking:</p>', unsafe_allow_html=True)
+    st.markdown('<div id="care-services" class="care-eyebrow" style="margin-top:2.2rem">Care that meets you where you are</div><div class="care-section-title">Explore our services</div><p>Choose a department to start booking:</p>', unsafe_allow_html=True)
     service_cols = st.columns(3)
     for index, department in enumerate(DEPARTMENTS):
         with service_cols[index % 3]:
@@ -323,7 +343,6 @@ def booking_page() -> None:
             with st.form("about_you_form"):
                 name = st.text_input("Your name", value=previous.get("name", ""), max_chars=120)
                 email = st.text_input("Email address", value=previous.get("email", ""), max_chars=254)
-                phone = st.text_input("Phone (optional)", value=previous.get("phone", ""), max_chars=40)
                 age_text = st.text_input("Age (optional)", value=str(previous.get("age") or ""), max_chars=3)
                 preferred_date = st.date_input("Preferred appointment date", value=previous.get("visit_date", date.today()), min_value=date.today())
                 concern = st.text_area("What would you like help with?", value=previous.get("concern", ""), max_chars=2000)
@@ -344,7 +363,7 @@ def booking_page() -> None:
                             st.error("Age must be a whole number between 0 and 120.")
                             return
                     st.session_state["booking_payload"] = {
-                        "name": name.strip(), "email": email.strip().lower(), "phone": phone.strip(),
+                        "name": name.strip(), "email": email.strip().lower(), "phone": "",
                         "age": age, "concern": concern.strip(), "visit_date": preferred_date,
                         "department": st.session_state.get("booking_department", "General Medicine"),
                     }
