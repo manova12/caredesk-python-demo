@@ -31,6 +31,126 @@ DOCTORS = {
     "S. Banerjee": {"dept": "Neurology", "days": {2, 3, 4, 5, 6}, "start": 9, "end": 13},
 }
 
+PAGES = {}
+
+APP_CSS = """
+<style>
+:root { --ink:#18303a; --muted:#687b7c; --teal:#0d8178; --teal-soft:#e5f4ef; --line:#e3ebe6; --wash:#f3f7f1; }
+[data-testid="stAppViewContainer"] { background:var(--wash); color:var(--ink); }
+[data-testid="stHeader"] { background:rgba(255,255,255,.94); border-bottom:1px solid var(--line); }
+[data-testid="stMainBlockContainer"] { max-width:1240px; padding-top:1.4rem; padding-bottom:3rem; }
+[data-testid="stSidebar"] { display:none; }
+[data-testid="stDecoration"] { display:none; }
+h1, h2, h3 { color:var(--ink); letter-spacing:-.025em; }
+p, label, [data-testid="stCaption"] { color:var(--muted); }
+[data-testid="stVerticalBlockBorderWrapper"] { border-color:var(--line)!important; border-radius:18px!important; background:white; box-shadow:0 12px 34px rgba(25,55,48,.05); }
+[data-testid="stBaseButton-primary"] { background:var(--teal); border-color:var(--teal); border-radius:10px; min-height:2.8rem; }
+[data-testid="stBaseButton-secondary"], [data-testid="stPageLink"] a { border-radius:10px; }
+[data-testid="stWidgetLabel"] p { color:var(--ink); font-weight:600; }
+[data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea, [data-testid="stDateInput"] input,
+[data-testid="stSelectbox"] [role="combobox"] { border-radius:10px; }
+.care-header { display:flex; align-items:center; gap:12px; padding:.25rem 0 .9rem; border-bottom:1px solid var(--line); margin-bottom:1.5rem; }
+.care-mark { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; background:var(--teal); color:white; font-weight:800; font-size:18px; }
+.care-name { color:var(--ink); font-weight:800; font-size:18px; line-height:1.1; }
+.care-tag { color:#718180; font-size:10px; letter-spacing:.09em; }
+.care-eyebrow { color:#0d8178; font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; margin-bottom:.7rem; }
+.care-hero-title { font-family:Georgia,serif; color:#17323a; font-size:clamp(2.4rem,5.8vw,4.8rem); line-height:1.02; letter-spacing:-.045em; margin:0 0 1rem; }
+.care-hero-sub { font-family:Georgia,serif; color:#5b7270; font-size:1.45rem; margin:0 0 1rem; }
+.care-body { color:#627676; font-size:1rem; line-height:1.8; max-width:40rem; }
+.care-panel-title { font-family:Georgia,serif; font-size:1.65rem; color:#203a40; margin:.3rem 0 .5rem; }
+.care-step { font-size:11px; color:#0d8178; font-weight:800; letter-spacing:.08em; }
+.care-section-title { font-family:Georgia,serif; font-size:2rem; color:#1a363d; margin:.15rem 0 .65rem; }
+.care-safety { background:#fff9ef; border:1px solid #f0dfc5; border-radius:14px; padding:1rem 1.2rem; color:#74552b; }
+.care-muted-small { font-size:.78rem; color:#849090; }
+@media (max-width:700px) { [data-testid="stMainBlockContainer"] { padding-left:1rem; padding-right:1rem; } .care-hero-title { font-size:2.7rem; } }
+</style>
+"""
+
+
+def site_header() -> None:
+    left, right = st.columns([5, 1.4], vertical_alignment="center")
+    with left:
+        st.markdown(
+            '<div class="care-header"><div class="care-mark">C</div>'
+            '<div><div class="care-name">CareDesk</div><div class="care-tag">CARE, MADE EASIER</div></div></div>',
+            unsafe_allow_html=True,
+        )
+    with right:
+        if "clinic" in PAGES:
+            st.page_link(PAGES["clinic"], label="Clinic team", icon=":material/medical_services:")
+
+
+def home_page() -> None:
+    site_header()
+    left, right = st.columns([1.3, .9], gap="large", vertical_alignment="center")
+    with left:
+        st.markdown('<div class="care-eyebrow">● Patient care, made easier</div>', unsafe_allow_html=True)
+        st.markdown('<h1 class="care-hero-title">KUMAR CLINIC AND PHARMACY</h1>', unsafe_allow_html=True)
+        st.markdown('<div class="care-hero-sub">A clear next step for your health.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="care-body">Tell us what you need help with. We’ll guide you to a suitable service and help you find an appointment that works for you.</div>', unsafe_allow_html=True)
+        st.write("")
+        cta, explore = st.columns([1, 1.1], vertical_alignment="center")
+        with cta:
+            st.page_link(PAGES["booking"], label="Book an appointment", icon=":material/arrow_forward:")
+        with explore:
+            st.page_link(PAGES["booking"], label="Explore care services")
+    with right:
+        with st.container(border=True):
+            st.markdown('<div class="care-step">YOUR VISIT STARTS HERE</div>', unsafe_allow_html=True)
+            st.markdown('<div class="care-panel-title">Find the care you need</div>', unsafe_allow_html=True)
+            st.write("Choose a service, share a few details, and review your appointment before booking.")
+            st.page_link(PAGES["booking"], label="Start booking", icon=":material/arrow_outward:")
+            st.page_link(PAGES["lookup"], label="Already booked? Find your demo appointment")
+            st.markdown('<div class="care-muted-small">This is a demonstration. Bookings use a separate demo database. Emails are previews only.</div>', unsafe_allow_html=True)
+
+    st.write("")
+    with st.container(border=True):
+        cols = st.columns(3)
+        for col, number, title, detail in zip(
+            cols,
+            ("01", "02", "03"),
+            ("Guided choice", "Your preferred time", "Human care"),
+            ("Find a department with a little help", "Choose from a doctor’s available hours", "Your care plan stays with your clinician"),
+        ):
+            with col:
+                st.markdown(f'<div class="care-step">{number}</div><strong>{title}</strong><br><span class="care-muted-small">{detail}</span>', unsafe_allow_html=True)
+
+    st.markdown('<div class="care-eyebrow" style="margin-top:2.2rem">Care that meets you where you are</div><div class="care-section-title">Explore our services</div><p>Choose a department to start booking:</p>', unsafe_allow_html=True)
+    service_cols = st.columns(3)
+    for index, department in enumerate(DEPARTMENTS):
+        with service_cols[index % 3]:
+            if st.button(department, key=f"home_service_{index}", use_container_width=True):
+                st.session_state["booking_department"] = department
+                st.session_state["booking_step"] = 1
+                st.switch_page(PAGES["booking"])
+
+    with st.expander("Help me choose"):
+        concern = st.text_area("What would you like help with?", key="home_routing_concern", max_chars=1500)
+        if st.button("Suggest a service", key="suggest_service"):
+            text = concern.lower()
+            routing = [
+                ("skin", "Dermatology"), ("rash", "Dermatology"),
+                ("bone", "Orthopedics"), ("joint", "Orthopedics"),
+                ("stomach", "Gastroenterology"), ("digest", "Gastroenterology"),
+                ("heart", "Cardiology"), ("chest", "Cardiology"),
+                ("headache", "Neurology"), ("nerve", "Neurology"),
+            ]
+            suggestion = next((dept for term, dept in routing if term in text), "General Medicine")
+            st.info(f"Suggested starting point: {suggestion}. This is administrative routing only, not a diagnosis.")
+
+    st.markdown('<div class="care-eyebrow" style="margin-top:2.2rem">A simple path to care</div><div class="care-section-title">What happens next</div><p>We’ll keep the steps clear, from your first question to your visit.</p>', unsafe_allow_html=True)
+    flow = st.columns(4)
+    for col, number, title, body in zip(
+        flow,
+        ("1", "2", "3", "4"),
+        ("Tell us what’s on your mind", "Choose a doctor and time", "Meet with your clinician", "Stay informed"),
+        ("Share your concern in your own words. A service suggestion is only a starting point.", "Review clinic hours and choose an appointment that suits you.", "Your clinician will assess your needs and discuss next steps.", "The clinic team can help with reminders and follow-up arrangements."),
+    ):
+        with col:
+            with st.container(border=True):
+                st.markdown(f'<div class="care-step">{number}</div><strong>{title}</strong><br><span class="care-muted-small">{body}</span>', unsafe_allow_html=True)
+    st.markdown('<div class="care-eyebrow" style="margin-top:2.2rem">Here when you need us</div><div class="care-section-title">Need urgent help?</div><div class="care-safety">This booking demo is not for emergencies. If you may be experiencing a medical emergency, or symptoms are severe or sudden, contact your local emergency services now.</div>', unsafe_allow_html=True)
+
 
 def connect_db() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -168,55 +288,125 @@ def staff_is_authorized() -> bool:
 
 
 def booking_page() -> None:
-    st.title("Book an appointment")
-    st.caption("Choose a clinic service, doctor, and available time. This demo does not provide medical advice.")
-    department = st.selectbox("Service", DEPARTMENTS, key="booking_department")
-    visit_date = st.date_input("Preferred date", min_value=date.today(), key="booking_date")
-    doctor_options = [name for name, d in DOCTORS.items() if d["dept"] == department and visit_date.weekday() in d["days"]]
-    if doctor_options:
-        doctor = st.selectbox("Doctor", doctor_options, key="booking_doctor")
-    else:
-        doctor = ""
-        st.info("No doctors are scheduled for this service on the selected day.")
-    slot_options = times_for(doctor, visit_date) if doctor in DOCTORS else []
-    if slot_options:
-        visit_time = st.selectbox("Available time", slot_options, key="booking_time")
-    else:
-        visit_time = ""
-        st.info("No open times are available. Select another date or doctor.")
+    site_header()
+    st.markdown('<div class="care-eyebrow">Your visit starts here</div>', unsafe_allow_html=True)
+    st.markdown('<div class="care-section-title">Let’s arrange your visit</div>', unsafe_allow_html=True)
+    st.caption("A clinic team member can review your request. This demo is not medical advice.")
+    step = st.session_state.setdefault("booking_step", 1)
+    step_cols = st.columns(3)
+    for col, number, label in zip(step_cols, ("01", "02", "03"), ("About you", "Service & time", "Review")):
+        with col:
+            active = int(number) // 1 <= step
+            st.markdown(f'<div class="care-step">{number}  {"●" if active else "○"} {label}</div>', unsafe_allow_html=True)
 
-    with st.form("booking_form"):
-        name = st.text_input("Full name", max_chars=120)
-        email = st.text_input("Email address", max_chars=254)
-        phone = st.text_input("Phone (optional)", max_chars=40)
-        age_text = st.text_input("Age (optional)", max_chars=3, help="Leave blank if you prefer not to provide it.")
-        concern = st.text_area("What would you like help with?", max_chars=2000)
-        consent = st.checkbox("I agree to receive appointment reminders by email.")
-        submitted = st.form_submit_button("Confirm booking", type="primary", disabled=not slot_options)
-    if submitted:
-        age = None
-        if age_text.strip():
-            try:
-                age = int(age_text)
-            except ValueError:
-                st.error("Age must be a whole number between 0 and 120.")
-                return
-            if not 0 <= age <= 120:
-                st.error("Age must be a whole number between 0 and 120.")
-                return
-        payload = {"name": name, "email": email, "phone": phone, "age": age,
-                   "concern": concern, "department": department, "doctor": doctor,
-                   "visit_date": visit_date, "visit_time": visit_time, "reminder_consent": consent}
-        ok, message, code = save_booking(payload)
-        if ok:
-            st.success(f"{message} Your confirmation code is **{code}**. Email is currently preview-only.")
-            st.session_state["last_booking_code"] = code
-        else:
+    previous = st.session_state.get("booking_payload", {})
+    if st.session_state.get("booking_result"):
+        result = st.session_state["booking_result"]
+        with st.container(border=True):
+            st.success(f"Appointment request saved. Your confirmation code is **{result['code']}**.")
+            st.write(f"{result['department']} · Dr. {result['doctor']} · {result['visit_date']} at {result['visit_time']}")
+            st.info("Email confirmations and reminders are previews only on this demo site.")
+            if st.button("Book another appointment", type="primary"):
+                st.session_state.pop("booking_result", None)
+                st.session_state.pop("booking_payload", None)
+                st.session_state["booking_step"] = 1
+                st.rerun()
+        return
+
+    if step == 1:
+        with st.container(border=True):
+            st.markdown('<div class="care-panel-title">About you</div><p>Share a few details so the clinic team can help arrange your visit.</p>', unsafe_allow_html=True)
+            with st.form("about_you_form"):
+                name = st.text_input("Your name", value=previous.get("name", ""), max_chars=120)
+                email = st.text_input("Email address", value=previous.get("email", ""), max_chars=254)
+                phone = st.text_input("Phone (optional)", value=previous.get("phone", ""), max_chars=40)
+                age_text = st.text_input("Age (optional)", value=str(previous.get("age") or ""), max_chars=3)
+                preferred_date = st.date_input("Preferred appointment date", value=previous.get("visit_date", date.today()), min_value=date.today())
+                concern = st.text_area("What would you like help with?", value=previous.get("concern", ""), max_chars=2000)
+                st.markdown('<div class="care-safety">Your message is used to suggest a service. It is not a diagnosis. For severe or sudden symptoms, contact local emergency services now.</div>', unsafe_allow_html=True)
+                continue_about = st.form_submit_button("Continue", type="primary")
+            if continue_about:
+                if not name.strip() or not concern.strip() or "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+                    st.error("Enter your name, a valid email address, and a short description of what you need help with.")
+                else:
+                    age = None
+                    if age_text.strip():
+                        try:
+                            age = int(age_text)
+                        except ValueError:
+                            st.error("Age must be a whole number between 0 and 120.")
+                            return
+                        if not 0 <= age <= 120:
+                            st.error("Age must be a whole number between 0 and 120.")
+                            return
+                    st.session_state["booking_payload"] = {
+                        "name": name.strip(), "email": email.strip().lower(), "phone": phone.strip(),
+                        "age": age, "concern": concern.strip(), "visit_date": preferred_date,
+                        "department": st.session_state.get("booking_department", "General Medicine"),
+                    }
+                    st.session_state["booking_step"] = 2
+                    st.rerun()
+        return
+
+    if step == 2:
+        with st.container(border=True):
+            st.markdown('<div class="care-panel-title">Choose a service and time</div><p>Suggested starting point: General Medicine. A clinic team member can review this with you.</p>', unsafe_allow_html=True)
+            department = st.selectbox("Service", DEPARTMENTS, index=DEPARTMENTS.index(previous.get("department", "General Medicine")), key="booking_department")
+            visit_date = st.date_input("Choose your appointment date", value=previous.get("visit_date", date.today()), min_value=date.today(), key="booking_date")
+            doctor_options = [name for name, roster in DOCTORS.items() if roster["dept"] == department and visit_date.weekday() in roster["days"]]
+            if doctor_options:
+                doctor = st.selectbox("Doctor", doctor_options, format_func=lambda name: f"Dr. {name} · {DOCTORS[name]['start']:02d}:00–{DOCTORS[name]['end']:02d}:00", key=f"booking_doctor_{department}_{visit_date.isoformat()}")
+            else:
+                doctor = ""
+                st.info("No doctors are scheduled for this service on the selected day.")
+            slot_options = times_for(doctor, visit_date) if doctor else []
+            if slot_options:
+                visit_time = st.selectbox("Preferred time", slot_options, key=f"booking_time_{doctor}_{visit_date.isoformat()}")
+                st.caption(f"Dr. {doctor} is available at {visit_time}. {len(slot_options)} open times remain. Times are shown in the clinic’s local time.")
+            else:
+                visit_time = ""
+                st.info("No open times are available. Choose a different date or doctor.")
+            back, forward = st.columns(2)
+            with back:
+                if st.button("← Back to your details"):
+                    st.session_state["booking_step"] = 1
+                    st.rerun()
+            with forward:
+                next_step = st.button("Continue", type="primary", disabled=not slot_options)
+            if next_step:
+                st.session_state["booking_payload"] = {**previous, "department": department, "doctor": doctor, "visit_date": visit_date, "visit_time": visit_time}
+                st.session_state["booking_step"] = 3
+                st.rerun()
+        return
+
+    payload = st.session_state.get("booking_payload", {})
+    if not payload.get("doctor"):
+        st.session_state["booking_step"] = 2
+        st.rerun()
+    with st.container(border=True):
+        st.markdown('<div class="care-panel-title">Review your appointment</div><div class="care-eyebrow">Your appointment</div>', unsafe_allow_html=True)
+        st.subheader(payload["department"])
+        st.write(f"**Doctor:** Dr. {payload['doctor']}  ·  **Date and time:** {payload['visit_date'].strftime('%d-%m-%Y')} at {payload['visit_time']}  ·  **Patient:** {payload['name']}")
+        if st.button("Change details"):
+            st.session_state["booking_step"] = 2
+            st.rerun()
+        with st.form("confirm_booking_form"):
+            consent = st.checkbox("I agree to receive appointment reminders by email. I can withdraw consent later.")
+            st.caption("Messages are simulated in this demo; no email message will be sent.")
+            st.caption("The service suggestion is for appointment routing only. Your clinician will assess your health concern during the visit.")
+            confirm = st.form_submit_button("Confirm appointment", type="primary")
+        if confirm:
+            saved = {**payload, "reminder_consent": consent}
+            ok, message, code = save_booking(saved)
+            if ok:
+                st.session_state["booking_result"] = {**saved, "code": code}
+                st.rerun()
             st.error(message)
 
 
 def lookup_page() -> None:
-    st.title("Find your appointment")
+    site_header()
+    st.markdown('<div class="care-eyebrow">Your visit starts here</div><div class="care-section-title">Find your appointment</div>', unsafe_allow_html=True)
     st.caption("Use the email address and confirmation code from your booking.")
     with st.form("lookup_form"):
         email = st.text_input("Booking email")
@@ -231,14 +421,19 @@ def lookup_page() -> None:
             st.error("We couldn't match that email and confirmation code.")
     booking = st.session_state.get("lookup_booking")
     if booking:
-        st.info(f"{booking['department']} with Dr. {booking['doctor']} · {booking['visit_date']} at {booking['visit_time']} · {booking['outcome']}")
-        st.caption("To change or cancel an appointment, contact the clinic team for this demo.")
+        with st.container(border=True):
+            st.markdown('<div class="care-eyebrow">Appointment details</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="care-panel-title">{booking["department"]}</div>', unsafe_allow_html=True)
+            st.write(f"Dr. {booking['doctor']} · {booking['visit_date']} at {booking['visit_time']} · {booking['outcome']}")
+            st.caption("To change or cancel an appointment, contact the clinic team for this demo.")
 
 
 def clinic_page() -> None:
-    st.title("Clinic team workspace")
+    site_header()
+    st.markdown('<div class="care-eyebrow">Restricted staff access</div><div class="care-section-title">Clinic team sign in</div>', unsafe_allow_html=True)
     if not staff_is_authorized():
-        st.info("Clinic staff sign-in is restricted to email addresses configured by the administrator.")
+        with st.container(border=True):
+            st.write("Sign in with an approved Google account configured by the clinic administrator.")
         try:
             if st.user.is_logged_in:
                 st.error("This Google account is not on the clinic staff allowlist.")
@@ -248,9 +443,19 @@ def clinic_page() -> None:
             st.warning("Staff sign-in is not configured yet. Add the Streamlit Google OIDC settings and staff email allowlist before deployment.")
         return
 
+    st.markdown('<div class="care-section-title">Good morning, clinic team</div><p>Here’s your patient coordination overview.</p>', unsafe_allow_html=True)
     bookings = get_bookings()
-    with st.container(border=True):
-        st.metric("Appointments", len(bookings))
+    metric_cols = st.columns(4)
+    for col, label, value, hint in zip(
+        metric_cols,
+        ("Appointments", "Appointments today", "Awaiting action", "Reminders queued"),
+        (len(bookings), sum(b["visit_date"] == date.today().isoformat() for b in bookings), 0, 0),
+        ("In this demo database", "Across all departments", "Needs staff review", "Preview only"),
+    ):
+        with col:
+            with st.container(border=True):
+                st.metric(label, value, help=hint)
+    st.markdown('<div class="care-section-title">Clinic operations</div><p>A live overview of this demo’s visits and next actions.</p>', unsafe_allow_html=True)
     if bookings:
         st.dataframe([{k: b[k] for k in ("name", "email", "department", "doctor", "visit_date", "visit_time", "outcome")} for b in bookings], hide_index=True)
     else:
@@ -265,17 +470,12 @@ def clinic_page() -> None:
     st.warning("Email delivery and reminder scheduling are preview-only in this first Python build. Configure an approved provider and persistent hosted database before relying on them.")
 
 
-st.set_page_config(page_title="CareDesk", page_icon="🩺", layout="wide")
+st.set_page_config(page_title="CareDesk | Kumar Clinic and Pharmacy", page_icon="🩺", layout="wide")
+st.markdown(APP_CSS, unsafe_allow_html=True)
 init_db()
-pages = [
-    st.Page(booking_page, title="Book an appointment", icon=":material/calendar_add_on:", default=True),
-    st.Page(lookup_page, title="Find your appointment", icon=":material/search:"),
-    st.Page(clinic_page, title="Clinic team", icon=":material/medical_services:"),
-]
-selected = st.navigation(pages, position="sidebar")
-with st.sidebar:
-    st.markdown("### CareDesk")
-    st.caption("Patient booking and clinic coordination demo")
-    st.divider()
-    st.caption("For emergencies, contact your local emergency services.")
+PAGES["home"] = st.Page(home_page, title="Patient portal", icon=":material/home:", default=True)
+PAGES["booking"] = st.Page(booking_page, title="Book an appointment", icon=":material/calendar_add_on:")
+PAGES["lookup"] = st.Page(lookup_page, title="Find your appointment", icon=":material/search:")
+PAGES["clinic"] = st.Page(clinic_page, title="Clinic team", icon=":material/medical_services:")
+selected = st.navigation(list(PAGES.values()), position="hidden")
 selected.run()
