@@ -106,7 +106,7 @@ p, label, [data-testid="stCaption"] { color:var(--muted); }
 """
 
 
-def site_header() -> None:
+def site_header(*, clinic_page: bool = False) -> None:
     left, right = st.columns([5, 1.4], vertical_alignment="center")
     with left:
         st.markdown(
@@ -115,7 +115,9 @@ def site_header() -> None:
             unsafe_allow_html=True,
         )
     with right:
-        if "clinic" in PAGES:
+        if clinic_page:
+            st.page_link(PAGES["home"], label="Patient portal", icon=":material/home:")
+        elif "clinic" in PAGES:
             st.page_link(PAGES["clinic"], label="Clinic team", icon=":material/medical_services:")
 
 
@@ -516,7 +518,7 @@ def lookup_page() -> None:
 
 
 def clinic_page() -> None:
-    site_header()
+    site_header(clinic_page=True)
     st.markdown('<div class="care-eyebrow">Restricted staff access</div><div class="care-section-title">Clinic team sign in</div>', unsafe_allow_html=True)
     if not staff_is_authorized():
         with st.container(border=True):
