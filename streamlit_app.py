@@ -45,6 +45,7 @@ h1, h2, h3 { color:var(--ink); letter-spacing:-.025em; }
 p, label, [data-testid="stCaption"] { color:var(--muted); }
 [data-testid="stVerticalBlockBorderWrapper"] { border-color:var(--line)!important; border-radius:18px!important; background:white; box-shadow:0 12px 34px rgba(25,55,48,.05); }
 [data-testid="stBaseButton-primary"] { background:var(--teal); border-color:var(--teal); border-radius:10px; min-height:2.8rem; }
+[data-testid="stBaseButton-primary"] p, [data-testid="stBaseButton-secondary"] p { color:#000!important; }
 [data-testid="stBaseButton-secondary"], [data-testid="stPageLink"] a { border-radius:10px; }
 [data-testid="stWidgetLabel"] p { color:var(--ink); font-weight:600; }
 [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea, [data-testid="stDateInput"] input,
