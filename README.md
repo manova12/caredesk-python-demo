@@ -39,3 +39,9 @@ Follow [SMTP_SETUP.md](SMTP_SETUP.md) to configure and verify SMTP for new booki
 The hosted app starts with a separate SQLite database. On Streamlit Community Cloud, that file is not durable across all restarts/redeploys, so configure an external persistent database before relying on saved bookings. Do not commit real patient information.
 
 This is a synthetic-data demo, not approved for live clinical use. Doctor availability must be verified by the clinic, and live email requires sender authorization, consent, and operational review.
+
+The patient portal displays the configured doctor roster and lets patients start a booking with a selected doctor. Both the roster display and slot validation use data_seed/configured_doctor_roster.csv. The entries are demo schedules and must be verified by the clinic before operational use.
+
+## Doctor roster
+
+The patient portal displays the configured doctor roster and lets patients start a booking with a selected doctor. Both the roster display and slot validation use `data_seed/configured_doctor_roster.csv`. The entries are demo schedules and must be verified by the clinic before operational use.

@@ -21,24 +21,65 @@ import streamlit as st
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("CAREDESK_DB_PATH", APP_DIR / "data" / "caredesk.sqlite3"))
 PATIENT_IMPORT_PATH = APP_DIR / "data_seed" / "patients_for_caredesk_import.csv"
+DOCTOR_ROSTER_PATH = APP_DIR / "data_seed" / "configured_doctor_roster.csv"
 DEPARTMENTS = [
     "General Medicine", "Dermatology", "Orthopedics",
     "Gastroenterology", "Neurology", "Cardiology",
 ]
-DOCTORS = {
-    "A. Mehta": {"dept": "General Medicine", "days": {1, 2, 3, 4, 5, 6}, "start": 9, "end": 13},
-    "V. Sinha": {"dept": "General Medicine", "days": {2, 3, 4, 5, 6}, "start": 14, "end": 17},
-    "R. Iyer": {"dept": "Dermatology", "days": {1, 2, 3, 4, 5}, "start": 10, "end": 15},
-    "N. Kapoor": {"dept": "Dermatology", "days": {2, 3, 4, 5, 6}, "start": 9, "end": 14},
-    "S. Rao": {"dept": "Orthopedics", "days": {1, 2, 3, 4, 5, 6}, "start": 9, "end": 14},
-    "T. Menon": {"dept": "Orthopedics", "days": {1, 2, 3, 4, 5}, "start": 14, "end": 17},
-    "P. Nair": {"dept": "Gastroenterology", "days": {1, 2, 3, 4, 5}, "start": 11, "end": 16},
-    "L. Desai": {"dept": "Gastroenterology", "days": {2, 3, 4, 5, 6}, "start": 9, "end": 13},
-    "K. Shah": {"dept": "Cardiology", "days": {1, 2, 3, 4, 5, 6}, "start": 9, "end": 12},
-    "N. Reddy": {"dept": "Cardiology", "days": {1, 2, 3, 4, 5}, "start": 14, "end": 17},
-    "M. Das": {"dept": "Neurology", "days": {1, 2, 3, 4, 5}, "start": 13, "end": 17},
-    "S. Banerjee": {"dept": "Neurology", "days": {2, 3, 4, 5, 6}, "start": 9, "end": 13},
+WEEKDAY_INDEX = {
+    "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
+    "Friday": 4, "Saturday": 5, "Sunday": 6,
 }
+WEEKDAY_LABELS = tuple(WEEKDAY_INDEX)
+
+
+def load_doctor_roster(path: str = str(DOCTOR_ROSTER_PATH)) -> dict[str, dict]:
+    """Load the public booking roster; the CSV is the shared schedule source.
+
+    Read this small file on each Streamlit rerun so a schedule edit is picked up
+    without leaving a stale cached roster in the booking flow.
+    """
+    roster_path = Path(path)
+    required = {"doctor_name", "department", "configured_days", "start_time", "end_time"}
+    doctors: dict[str, dict] = {}
+    try:
+        with roster_path.open("r", newline="", encoding="utf-8-sig") as source:
+            reader = csv.DictReader(source)
+            if not reader.fieldnames or not required.issubset(reader.fieldnames):
+                raise ValueError("required columns are missing")
+            for line_number, row in enumerate(reader, start=2):
+                name = (row.get("doctor_name") or "").strip()
+                department = (row.get("department") or "").strip()
+                day_range = (row.get("configured_days") or "").strip()
+                if not name or department not in DEPARTMENTS or name in doctors:
+                    raise ValueError(f"invalid or duplicate doctor on row {line_number}")
+                endpoints = [part.strip() for part in day_range.split("-")]
+                if len(endpoints) != 2 or any(day not in WEEKDAY_INDEX for day in endpoints):
+                    raise ValueError(f"invalid configured_days on row {line_number}")
+                first, last = (WEEKDAY_INDEX[day] for day in endpoints)
+                days = set()
+                day = first
+                while True:
+                    days.add(day)
+                    if day == last:
+                        break
+                    day = (day + 1) % 7
+                start_time = time.fromisoformat((row.get("start_time") or "").strip())
+                end_time = time.fromisoformat((row.get("end_time") or "").strip())
+                if start_time.minute or start_time.second or end_time.minute or end_time.second or start_time >= end_time:
+                    raise ValueError(f"invalid start/end time on row {line_number}")
+                doctors[name] = {
+                    "dept": department, "days": days,
+                    "start": start_time.hour, "end": end_time.hour,
+                }
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"Could not load the doctor booking roster at {roster_path}: {exc}") from exc
+    if not doctors:
+        raise RuntimeError(f"The doctor booking roster is empty: {roster_path}")
+    return doctors
+
+
+DOCTORS = load_doctor_roster()
 
 PAGES = {}
 
@@ -55,6 +96,10 @@ def display_date(value: str | date | datetime) -> str:
 def display_datetime(value: str) -> str:
     """Format a stored ISO datetime for the clinic message queue."""
     return datetime.fromisoformat(value).strftime("%d-%m-%Y %H:%M")
+
+
+def doctor_days_label(days: set[int]) -> str:
+    return ", ".join(WEEKDAY_LABELS[day] for day in sorted(days))
 
 APP_CSS = """
 <style>
@@ -129,6 +174,22 @@ def site_header(*, clinic_page: bool = False) -> None:
             st.page_link(PAGES["clinic"], label="Clinic team", icon=":material/medical_services:")
 
 
+def begin_booking(*, department: str | None = None, doctor: str | None = None) -> None:
+    """Start a clean booking, optionally carrying a patient roster selection."""
+    st.session_state.pop("booking_result", None)
+    st.session_state.pop("booking_payload", None)
+    st.session_state["booking_step"] = 1
+    if department:
+        st.session_state["booking_department"] = department
+    else:
+        st.session_state.pop("booking_department", None)
+    if doctor:
+        st.session_state["booking_preferred_doctor"] = doctor
+    else:
+        st.session_state.pop("booking_preferred_doctor", None)
+    st.switch_page(PAGES["booking"])
+
+
 def home_page() -> None:
     site_header()
     with st.container(key="home-hero"):
@@ -141,7 +202,7 @@ def home_page() -> None:
             cta, explore = st.columns([1, 1.05], vertical_alignment="center")
             with cta:
                 if st.button("Book an appointment  →", type="primary", key="home_book", use_container_width=True):
-                    st.switch_page(PAGES["booking"])
+                    begin_booking()
             with explore:
                 st.markdown('<a class="care-secondary-link" href="#care-services">Explore care services</a>', unsafe_allow_html=True)
         with right:
@@ -149,7 +210,7 @@ def home_page() -> None:
                 st.markdown('<div class="care-visit-icon" aria-hidden="true">▦</div><div class="care-step">YOUR VISIT STARTS HERE</div><div class="care-panel-title">Find the care you need</div>', unsafe_allow_html=True)
                 st.write("Choose a service, share a few details, and review your appointment before booking.")
                 if st.button("Start booking  ↗", type="primary", key="home_start_booking", use_container_width=True):
-                    st.switch_page(PAGES["booking"])
+                    begin_booking()
                 if st.button("Already booked? Find your demo appointment", key="home_lookup", use_container_width=True):
                     st.switch_page(PAGES["lookup"])
                 st.markdown('<div class="care-demo-note">This is a demonstration. Bookings use a separate demo database. Emails are previews only.</div>', unsafe_allow_html=True)
@@ -167,9 +228,31 @@ def home_page() -> None:
     for index, department in enumerate(DEPARTMENTS):
         with service_cols[index % 3]:
             if st.button(department, key=f"home_service_{index}", use_container_width=True):
-                st.session_state["booking_department"] = department
-                st.session_state["booking_step"] = 1
-                st.switch_page(PAGES["booking"])
+                begin_booking(department=department)
+
+    with st.expander("Browse doctors and configured hours"):
+        st.caption("These are demonstration schedules. Please confirm availability with the clinic before relying on them.")
+        st.dataframe(
+            [
+                {
+                    "Doctor": f"Dr. {name}",
+                    "Department": roster["dept"],
+                    "Configured days": doctor_days_label(roster["days"]),
+                    "Hours": f"{roster['start']:02d}:00–{roster['end']:02d}:00",
+                }
+                for name, roster in DOCTORS.items()
+            ],
+            hide_index=True,
+            use_container_width=True,
+        )
+        roster_doctor = st.selectbox(
+            "Choose a doctor to book with",
+            list(DOCTORS),
+            format_func=lambda name: f"Dr. {name} · {DOCTORS[name]['dept']}",
+            key="home_roster_doctor",
+        )
+        if st.button("Book with selected doctor", key="home_book_with_doctor", type="primary"):
+            begin_booking(department=DOCTORS[roster_doctor]["dept"], doctor=roster_doctor)
 
     with st.expander("Help me choose"):
         concern = st.text_area("What would you like help with?", key="home_routing_concern", max_chars=1500)
@@ -578,6 +661,8 @@ def booking_page() -> None:
             if st.button("Book another appointment", type="primary"):
                 st.session_state.pop("booking_result", None)
                 st.session_state.pop("booking_payload", None)
+                st.session_state.pop("booking_preferred_doctor", None)
+                st.session_state.pop("booking_department", None)
                 st.session_state["booking_step"] = 1
                 st.rerun()
         return
@@ -611,6 +696,7 @@ def booking_page() -> None:
                         "name": name.strip(), "email": email.strip().lower(), "phone": "",
                         "age": age, "concern": concern.strip(), "visit_date": preferred_date,
                         "department": st.session_state.get("booking_department", "General Medicine"),
+                        "preferred_doctor": st.session_state.get("booking_preferred_doctor", ""),
                     }
                     st.session_state["booking_step"] = 2
                     st.rerun()
@@ -623,7 +709,14 @@ def booking_page() -> None:
             visit_date = st.date_input("Choose your appointment date", value=previous.get("visit_date", date.today()), min_value=date.today(), key="booking_date", format="DD-MM-YYYY")
             doctor_options = [name for name, roster in DOCTORS.items() if roster["dept"] == department and visit_date.weekday() in roster["days"]]
             if doctor_options:
-                doctor = st.selectbox("Doctor", doctor_options, format_func=lambda name: f"Dr. {name} · {DOCTORS[name]['start']:02d}:00–{DOCTORS[name]['end']:02d}:00", key=f"booking_doctor_{department}_{visit_date.isoformat()}")
+                preferred_doctor = previous.get("preferred_doctor") or st.session_state.get("booking_preferred_doctor", "")
+                doctor_index = doctor_options.index(preferred_doctor) if preferred_doctor in doctor_options else 0
+                if preferred_doctor and preferred_doctor not in doctor_options:
+                    st.info(f"Dr. {preferred_doctor} is not scheduled for {display_date(visit_date)}. Choose another available doctor or change the date.")
+                doctor_key = f"booking_doctor_{department}_{visit_date.isoformat()}_{preferred_doctor or 'any'}"
+                if st.session_state.get(doctor_key) not in doctor_options:
+                    st.session_state[doctor_key] = doctor_options[doctor_index]
+                doctor = st.selectbox("Doctor", doctor_options, index=doctor_index, format_func=lambda name: f"Dr. {name} · {DOCTORS[name]['start']:02d}:00–{DOCTORS[name]['end']:02d}:00", key=doctor_key)
             else:
                 doctor = ""
                 st.info("No doctors are scheduled for this service on the selected day.")
@@ -642,7 +735,7 @@ def booking_page() -> None:
             with forward:
                 next_step = st.button("Continue", type="primary", disabled=not slot_options)
             if next_step:
-                st.session_state["booking_payload"] = {**previous, "department": department, "doctor": doctor, "visit_date": visit_date, "visit_time": visit_time}
+                st.session_state["booking_payload"] = {**previous, "department": department, "doctor": doctor, "preferred_doctor": doctor, "visit_date": visit_date, "visit_time": visit_time}
                 st.session_state["booking_step"] = 3
                 st.rerun()
         return

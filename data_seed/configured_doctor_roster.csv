@@ -1,0 +1,13 @@
+﻿doctor_name,department,configured_days,start_time,end_time,verification_status
+A. Mehta,General Medicine,Tuesday-Sunday,09:00,13:00,Demo configuration - clinic verification required
+V. Sinha,General Medicine,Wednesday-Sunday,14:00,17:00,Demo configuration - clinic verification required
+R. Iyer,Dermatology,Tuesday-Saturday,10:00,15:00,Demo configuration - clinic verification required
+N. Kapoor,Dermatology,Wednesday-Sunday,09:00,14:00,Demo configuration - clinic verification required
+S. Rao,Orthopedics,Tuesday-Sunday,09:00,14:00,Demo configuration - clinic verification required
+T. Menon,Orthopedics,Tuesday-Saturday,14:00,17:00,Demo configuration - clinic verification required
+P. Nair,Gastroenterology,Tuesday-Saturday,11:00,16:00,Demo configuration - clinic verification required
+L. Desai,Gastroenterology,Wednesday-Sunday,09:00,13:00,Demo configuration - clinic verification required
+K. Shah,Cardiology,Tuesday-Sunday,09:00,12:00,Demo configuration - clinic verification required
+N. Reddy,Cardiology,Tuesday-Saturday,14:00,17:00,Demo configuration - clinic verification required
+M. Das,Neurology,Tuesday-Saturday,13:00,17:00,Demo configuration - clinic verification required
+S. Banerjee,Neurology,Wednesday-Sunday,09:00,13:00,Demo configuration - clinic verification required
