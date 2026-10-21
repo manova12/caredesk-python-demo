@@ -116,7 +116,8 @@ def site_header(*, clinic_page: bool = False) -> None:
         )
     with right:
         if clinic_page:
-            st.page_link(PAGES["home"], label="Patient portal", icon=":material/home:")
+            if st.button("← Patient portal", key="clinic_to_patient_portal"):
+                st.switch_page(PAGES["home"])
         elif "clinic" in PAGES:
             st.page_link(PAGES["clinic"], label="Clinic team", icon=":material/medical_services:")
 
