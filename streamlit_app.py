@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import secrets
@@ -12,6 +13,7 @@ import streamlit as st
 
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("CAREDESK_DB_PATH", APP_DIR / "data" / "caredesk.sqlite3"))
+PATIENT_IMPORT_PATH = APP_DIR / "data_seed" / "patients_for_caredesk_import.csv"
 DEPARTMENTS = [
     "General Medicine", "Dermatology", "Orthopedics",
     "Gastroenterology", "Neurology", "Cardiology",
@@ -219,7 +221,49 @@ def init_db() -> None:
                 event TEXT NOT NULL,
                 at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS patient_records (
+                patient_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                age INTEGER,
+                issue TEXT NOT NULL,
+                department TEXT NOT NULL,
+                email_opt_in INTEGER NOT NULL DEFAULT 0
+            );
         """)
+
+
+def seed_demo_patient_records() -> None:
+    if not PATIENT_IMPORT_PATH.exists():
+        return
+    with PATIENT_IMPORT_PATH.open("r", newline="", encoding="utf-8-sig") as source:
+        rows = csv.DictReader(source)
+        required = {"id", "name", "email", "age", "issue", "department", "email_opt_in"}
+        if not rows.fieldnames or not required.issubset(rows.fieldnames):
+            return
+        records = []
+        for row in rows:
+            age_text = (row.get("age") or "").strip()
+            opt_in = (row.get("email_opt_in") or "").strip().casefold() in {"yes", "true", "1", "y"}
+            records.append((
+                (row.get("id") or "").strip(),
+                (row.get("name") or "").strip(),
+                (row.get("email") or "").strip().lower(),
+                int(age_text) if age_text else None,
+                (row.get("issue") or "").strip(),
+                (row.get("department") or "").strip(),
+                int(opt_in),
+            ))
+    with connect_db() as db:
+        db.executemany(
+            "INSERT OR IGNORE INTO patient_records(patient_id,name,email,age,issue,department,email_opt_in) VALUES(?,?,?,?,?,?,?)",
+            records,
+        )
+
+
+def get_patient_records() -> list[dict]:
+    with connect_db() as db:
+        return [dict(row) for row in db.execute("SELECT * FROM patient_records ORDER BY patient_id")]
 
 
 def get_bookings() -> list[dict]:
@@ -475,17 +519,33 @@ def clinic_page() -> None:
         return
 
     st.markdown('<div class="care-section-title">Good morning, clinic team</div><p>Here’s your patient coordination overview.</p>', unsafe_allow_html=True)
+    patients = get_patient_records()
     bookings = get_bookings()
+    with connect_db() as db:
+        queued_count = db.execute("SELECT COUNT(*) FROM message_queue").fetchone()[0]
     metric_cols = st.columns(4)
     for col, label, value, hint in zip(
         metric_cols,
-        ("Appointments", "Appointments today", "Awaiting action", "Reminders queued"),
-        (len(bookings), sum(b["visit_date"] == date.today().isoformat() for b in bookings), 0, 0),
-        ("In this demo database", "Across all departments", "Needs staff review", "Preview only"),
+        ("Patients", "Appointments", "Appointments today", "Messages queued"),
+        (len(patients), len(bookings), sum(b["visit_date"] == date.today().isoformat() for b in bookings), queued_count),
+        ("Synthetic demo records", "In this demo database", "Across all departments", "Preview only"),
     ):
         with col:
             with st.container(border=True):
                 st.metric(label, value, help=hint)
+    st.markdown('<div class="care-section-title">Patient records</div><p>Imported synthetic demo records for clinic-team review. These are not real patients.</p>', unsafe_allow_html=True)
+    st.caption("The supplied sample marks every patient as not opted in to email reminders. No email is sent from these records.")
+    patient_search = st.text_input("Search patients", placeholder="Search by name, email, issue, or department", key="patient_record_search").strip().casefold()
+    visible_patients = [p for p in patients if not patient_search or patient_search in " ".join(str(p[k]) for k in ("patient_id", "name", "email", "issue", "department")).casefold()]
+    if visible_patients:
+        st.dataframe([
+            {"Patient ID": p["patient_id"], "Name": p["name"], "Email": p["email"], "Age": p["age"],
+             "Reported issue": p["issue"], "Department": p["department"], "Email opt-in": "Yes" if p["email_opt_in"] else "No"}
+            for p in visible_patients
+        ], hide_index=True, use_container_width=True)
+    else:
+        st.info("No patient records match that search.")
+
     st.markdown('<div class="care-section-title">Clinic operations</div><p>A live overview of this demo’s visits and next actions.</p>', unsafe_allow_html=True)
     if bookings:
         st.dataframe([{k: b[k] for k in ("name", "email", "department", "doctor", "visit_date", "visit_time", "outcome")} for b in bookings], hide_index=True)
@@ -504,6 +564,7 @@ def clinic_page() -> None:
 st.set_page_config(page_title="CareDesk | Kumar Clinic and Pharmacy", page_icon="🩺", layout="wide")
 st.markdown(APP_CSS, unsafe_allow_html=True)
 init_db()
+seed_demo_patient_records()
 PAGES["home"] = st.Page(home_page, title="Patient portal", icon=":material/home:", default=True)
 PAGES["booking"] = st.Page(booking_page, title="Book an appointment", icon=":material/calendar_add_on:")
 PAGES["lookup"] = st.Page(lookup_page, title="Find your appointment", icon=":material/search:")
