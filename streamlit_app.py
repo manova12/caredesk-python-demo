@@ -254,8 +254,13 @@ def times_for(doctor: str, visit_date: date) -> list[str]:
 def queue_messages(db: sqlite3.Connection, booking: dict) -> None:
     now = datetime.now().astimezone()
     local_zone = now.tzinfo
+    booking_date = booking["visit_date"]
+    if isinstance(booking_date, datetime):
+        booking_date = booking_date.date()
+    elif isinstance(booking_date, str):
+        booking_date = date.fromisoformat(booking_date)
     visit_at = datetime.combine(
-        date.fromisoformat(booking["visit_date"]),
+        booking_date,
         time.fromisoformat(booking["visit_time"]),
     ).replace(tzinfo=local_zone)
     reminder_at = visit_at - timedelta(hours=2)
