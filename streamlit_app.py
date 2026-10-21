@@ -503,22 +503,6 @@ def send_booking_confirmation(booking: dict) -> tuple[bool, str]:
             connection.close()
 
 
-def verify_smtp_connection() -> tuple[bool, str]:
-    if not smtp_ready(require_enabled=False):
-        return False, "SMTP settings are incomplete."
-    connection = smtp_connection()
-    try:
-        code, _ = connection.noop()
-        if code != 250:
-            return False, "SMTP did not accept the connection check."
-        return True, "SMTP authentication succeeded. No email was sent."
-    finally:
-        try:
-            connection.quit()
-        except Exception:
-            connection.close()
-
-
 def taken_slots(doctor: str, visit_date: date) -> set[str]:
     with connect_db() as db:
         rows = db.execute(
@@ -835,12 +819,6 @@ def clinic_page() -> None:
     if smtp_ready(require_enabled=False):
         smtp_is_enabled = bool(smtp_settings().get("send_enabled", False))
         st.caption("Booking confirmation SMTP is " + ("enabled for new bookings." if smtp_is_enabled else "configured but sending is disabled."))
-        if st.button("Verify SMTP connection"):
-            try:
-                verified, detail = verify_smtp_connection()
-                st.success(detail) if verified else st.error(detail)
-            except Exception:
-                st.error("SMTP verification failed. Check the host, port, sender, and authentication settings in Streamlit Secrets.")
     else:
         st.info("SMTP is not configured. Add the [smtp] settings in Streamlit Secrets to send booking confirmations.")
 
