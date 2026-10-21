@@ -35,6 +35,20 @@ DOCTORS = {
 
 PAGES = {}
 
+
+def display_date(value: str | date | datetime) -> str:
+    """Format dates for the website while keeping stored dates in ISO format."""
+    if isinstance(value, str):
+        value = date.fromisoformat(value)
+    elif isinstance(value, datetime):
+        value = value.date()
+    return value.strftime("%d-%m-%Y")
+
+
+def display_datetime(value: str) -> str:
+    """Format a stored ISO datetime for the clinic message queue."""
+    return datetime.fromisoformat(value).strftime("%d-%m-%Y %H:%M")
+
 APP_CSS = """
 <style>
 :root { --ink:#18303a; --muted:#687b7c; --teal:#0d8178; --teal-soft:#e5f4ef; --line:#e3ebe6; --wash:#f3f7f1; }
@@ -378,7 +392,7 @@ def booking_page() -> None:
         result = st.session_state["booking_result"]
         with st.container(border=True):
             st.success(f"Appointment request saved. Your confirmation code is **{result['code']}**.")
-            st.write(f"{result['department']} · Dr. {result['doctor']} · {result['visit_date']} at {result['visit_time']}")
+            st.write(f"{result['department']} · Dr. {result['doctor']} · {display_date(result['visit_date'])} at {result['visit_time']}")
             st.info("Email confirmations and reminders are previews only on this demo site.")
             if st.button("Book another appointment", type="primary"):
                 st.session_state.pop("booking_result", None)
@@ -394,7 +408,7 @@ def booking_page() -> None:
                 name = st.text_input("Your name", value=previous.get("name", ""), max_chars=120)
                 email = st.text_input("Email address", value=previous.get("email", ""), max_chars=254)
                 age_text = st.text_input("Age (optional)", value=str(previous.get("age") or ""), max_chars=3)
-                preferred_date = st.date_input("Preferred appointment date", value=previous.get("visit_date", date.today()), min_value=date.today())
+                preferred_date = st.date_input("Preferred appointment date", value=previous.get("visit_date", date.today()), min_value=date.today(), format="DD-MM-YYYY")
                 concern = st.text_area("What would you like help with?", value=previous.get("concern", ""), max_chars=2000)
                 st.markdown('<div class="care-safety">Your message is used to suggest a service. It is not a diagnosis. For severe or sudden symptoms, contact local emergency services now.</div>', unsafe_allow_html=True)
                 continue_about = st.form_submit_button("Continue", type="primary")
@@ -425,7 +439,7 @@ def booking_page() -> None:
         with st.container(border=True):
             st.markdown('<div class="care-panel-title">Choose a service and time</div><p>Suggested starting point: General Medicine. A clinic team member can review this with you.</p>', unsafe_allow_html=True)
             department = st.selectbox("Service", DEPARTMENTS, index=DEPARTMENTS.index(previous.get("department", "General Medicine")), key="booking_department")
-            visit_date = st.date_input("Choose your appointment date", value=previous.get("visit_date", date.today()), min_value=date.today(), key="booking_date")
+            visit_date = st.date_input("Choose your appointment date", value=previous.get("visit_date", date.today()), min_value=date.today(), key="booking_date", format="DD-MM-YYYY")
             doctor_options = [name for name, roster in DOCTORS.items() if roster["dept"] == department and visit_date.weekday() in roster["days"]]
             if doctor_options:
                 doctor = st.selectbox("Doctor", doctor_options, format_func=lambda name: f"Dr. {name} · {DOCTORS[name]['start']:02d}:00–{DOCTORS[name]['end']:02d}:00", key=f"booking_doctor_{department}_{visit_date.isoformat()}")
@@ -497,7 +511,7 @@ def lookup_page() -> None:
         with st.container(border=True):
             st.markdown('<div class="care-eyebrow">Appointment details</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="care-panel-title">{booking["department"]}</div>', unsafe_allow_html=True)
-            st.write(f"Dr. {booking['doctor']} · {booking['visit_date']} at {booking['visit_time']} · {booking['outcome']}")
+            st.write(f"Dr. {booking['doctor']} · {display_date(booking['visit_date'])} at {booking['visit_time']} · {booking['outcome']}")
             st.caption("To change or cancel an appointment, contact the clinic team for this demo.")
 
 
@@ -548,11 +562,17 @@ def clinic_page() -> None:
 
     st.markdown('<div class="care-section-title">Clinic operations</div><p>A live overview of this demo’s visits and next actions.</p>', unsafe_allow_html=True)
     if bookings:
-        st.dataframe([{k: b[k] for k in ("name", "email", "department", "doctor", "visit_date", "visit_time", "outcome")} for b in bookings], hide_index=True)
+        st.dataframe([
+            {"Name": b["name"], "Email": b["email"], "Department": b["department"], "Doctor": b["doctor"],
+             "Visit date": display_date(b["visit_date"]), "Visit time": b["visit_time"], "Outcome": b["outcome"]}
+            for b in bookings
+        ], hide_index=True)
     else:
         st.info("No demo bookings yet.")
     with connect_db() as db:
         messages = [dict(row) for row in db.execute("SELECT kind,recipient,scheduled_at,status,note FROM message_queue ORDER BY scheduled_at DESC LIMIT 100")]
+    for message in messages:
+        message["scheduled_at"] = display_datetime(message["scheduled_at"])
     st.subheader("Message queue")
     if messages:
         st.dataframe(messages, hide_index=True)
