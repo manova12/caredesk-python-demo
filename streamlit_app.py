@@ -816,10 +816,7 @@ def clinic_page() -> None:
                 st.warning("Staff sign-in is not configured yet. Add clinic login credentials or configure Google OIDC and a staff email allowlist.")
         return
 
-    if smtp_ready(require_enabled=False):
-        smtp_is_enabled = bool(smtp_settings().get("send_enabled", False))
-        st.caption("Booking confirmation SMTP is " + ("enabled for new bookings." if smtp_is_enabled else "configured but sending is disabled."))
-    else:
+    if not smtp_ready(require_enabled=False):
         st.info("SMTP is not configured. Add the [smtp] settings in Streamlit Secrets to send booking confirmations.")
 
     if st.session_state.get("clinic_password_authenticated") and st.button("Sign out", key="clinic_password_signout"):
@@ -872,9 +869,6 @@ def clinic_page() -> None:
         st.dataframe(messages, hide_index=True)
     else:
         st.caption("No messages are queued.")
-    st.warning("SMTP can send booking confirmations when configured. Appointment reminders still require a persistent scheduled worker and are not sent automatically by this hosted demo.")
-
-
 st.set_page_config(page_title="CareDesk | Kumar Clinic and Pharmacy", page_icon="🩺", layout="wide")
 st.markdown(APP_CSS, unsafe_allow_html=True)
 init_db()
