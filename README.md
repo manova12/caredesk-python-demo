@@ -11,7 +11,7 @@ This is a separate Python rebuild. It does not modify the existing Node.js app o
 - Reminder opt-in capture and a persistent local message-preview queue.
 - Clinic workspace gated by Google OIDC and an administrator email allowlist.
 
-The first Python build queues email previews only. It does not send SMTP mail or reminders. The existing Node implementation remains the source of truth until the Python version is completed and deliberately migrated.
+The Python build can send new booking confirmations through an SMTP server when configured in Streamlit Secrets. Sending is disabled until the clinic verifies the SMTP connection and enables it. Appointment reminders remain previews because Streamlit Community Cloud does not run a durable background scheduler for this app. The existing Node implementation remains separate; its SMTP credentials and OAuth tokens are not automatically shared with this Python deployment.
 
 The clinic workspace imports `data_seed/patients_for_caredesk_import.csv` into a separate patient-record table using stable patient IDs. The sample contains fictional records, uses `example.com` email addresses, and marks every record as not opted in to email. It is only visible after staff authorization. Do not replace it with real patient information in this public demo.
 
@@ -33,6 +33,8 @@ Local bookings are stored in `data/caredesk.sqlite3`.
 Streamlit Community Cloud deploys Python apps, but this local SQLite file is not a durable hosted database. The hosted clinic workspace uses Google OIDC and an email allowlist.
 
 Follow [STREAMLIT_OIDC_SETUP.md](STREAMLIT_OIDC_SETUP.md) to configure Google staff sign-in and the email allowlist.
+
+Follow [SMTP_SETUP.md](SMTP_SETUP.md) to configure and verify SMTP for new booking confirmations.
 
 The hosted app starts with a separate SQLite database. On Streamlit Community Cloud, that file is not durable across all restarts/redeploys, so configure an external persistent database before relying on saved bookings. Do not commit real patient information.
 

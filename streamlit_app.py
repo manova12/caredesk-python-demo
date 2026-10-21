@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import csv
+import base64
 import json
 import os
 import secrets
+import smtplib
+import ssl
 import sqlite3
 from datetime import date, datetime, time, timedelta
+from email.message import EmailMessage
+from email.utils import formataddr
 from pathlib import Path
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 import streamlit as st
 
@@ -288,6 +295,147 @@ def get_bookings() -> list[dict]:
         return [dict(row) for row in db.execute("SELECT * FROM bookings ORDER BY visit_date, visit_time")]
 
 
+def smtp_settings() -> dict:
+    try:
+        return dict(st.secrets.get("smtp", {}))
+    except Exception:
+        return {}
+
+
+def smtp_ready(*, require_enabled: bool = True) -> bool:
+    config = smtp_settings()
+    if require_enabled and not config.get("send_enabled", False):
+        return False
+    host = str(config.get("host", "")).strip()
+    try:
+        port = int(config.get("port", 0) or 0)
+    except (TypeError, ValueError):
+        return False
+    sender = str(config.get("from_email", config.get("username", ""))).strip()
+    username = str(config.get("username", sender)).strip()
+    method = str(config.get("auth_method", "password")).strip().casefold()
+    if not host or not 1 <= port <= 65535 or "@" not in sender or "@" not in username:
+        return False
+    if method == "oauth2":
+        return all(str(config.get(key, "")).strip() for key in ("client_id", "client_secret", "refresh_token"))
+    return bool(str(config.get("password", "")).strip())
+
+
+def smtp_oauth_access_token(config: dict) -> str:
+    form = urlencode({
+        "client_id": str(config["client_id"]).strip(),
+        "client_secret": str(config["client_secret"]).strip(),
+        "refresh_token": str(config["refresh_token"]).strip(),
+        "grant_type": "refresh_token",
+    }).encode("ascii")
+    request = Request(
+        "https://oauth2.googleapis.com/token",
+        data=form,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with urlopen(request, timeout=15) as response:
+        token_data = json.loads(response.read().decode("utf-8"))
+    access_token = token_data.get("access_token", "")
+    if not access_token:
+        raise RuntimeError("Google did not return an SMTP access token.")
+    return str(access_token)
+
+
+def smtp_connection():
+    config = smtp_settings()
+    if not smtp_ready(require_enabled=False):
+        raise RuntimeError("SMTP settings are incomplete.")
+    host = str(config["host"]).strip()
+    port = int(config["port"])
+    username = str(config.get("username", config.get("from_email", ""))).strip()
+    use_ssl = bool(config.get("use_ssl", port == 465))
+    connection = (smtplib.SMTP_SSL(host, port, timeout=20, context=ssl.create_default_context())
+                  if use_ssl else smtplib.SMTP(host, port, timeout=20))
+    try:
+        connection.ehlo()
+        if not use_ssl:
+            if not connection.has_extn("starttls"):
+                raise RuntimeError("The SMTP server does not offer required STARTTLS encryption.")
+            connection.starttls(context=ssl.create_default_context())
+            connection.ehlo()
+        method = str(config.get("auth_method", "password")).strip().casefold()
+        if method == "oauth2":
+            token = smtp_oauth_access_token(config)
+            xoauth2 = base64.b64encode(f"user={username}\x01auth=Bearer {token}\x01\x01".encode("utf-8")).decode("ascii")
+            code, _ = connection.docmd("AUTH", "XOAUTH2 " + xoauth2)
+            if code != 235:
+                raise smtplib.SMTPAuthenticationError(code, b"SMTP OAuth authentication was rejected.")
+        elif method == "password":
+            connection.login(username, str(config["password"]).strip())
+        else:
+            raise RuntimeError("Unsupported SMTP authentication method.")
+        return connection
+    except Exception:
+        try:
+            connection.quit()
+        except Exception:
+            connection.close()
+        raise
+
+
+def send_booking_confirmation(booking: dict) -> tuple[bool, str]:
+    if not smtp_ready():
+        return False, "SMTP is not configured; no email was sent."
+    recipient_domain = booking["email"].rsplit("@", 1)[-1].casefold()
+    if recipient_domain == "example.com" or recipient_domain.endswith((".example", ".invalid", ".test")):
+        return False, "Synthetic demo addresses are blocked from live email delivery."
+    config = smtp_settings()
+    sender = str(config.get("from_email", config.get("username", ""))).strip()
+    visit_date = booking["visit_date"]
+    if isinstance(visit_date, datetime):
+        visit_date = visit_date.date()
+    elif isinstance(visit_date, str):
+        visit_date = date.fromisoformat(visit_date)
+    message = EmailMessage()
+    message["From"] = formataddr(("Kumar Clinic and Pharmacy", sender))
+    message["To"] = booking["email"]
+    message["Subject"] = "Your Kumar Clinic appointment confirmation"
+    message.set_content(
+        f"Hello {booking['name']},\n\n"
+        "Your appointment has been booked.\n\n"
+        f"Service: {booking['department']}\n"
+        f"Doctor: Dr. {booking['doctor']}\n"
+        f"Date: {visit_date.strftime('%d-%m-%Y')}\n"
+        f"Time: {booking['visit_time']} (clinic local time)\n"
+        f"Confirmation code: {booking['confirmation_code']}\n\n"
+        "Please contact the clinic team if you need to change your appointment.\n"
+        "This email confirms scheduling only and does not contain medical advice."
+    )
+    connection = smtp_connection()
+    try:
+        refused = connection.send_message(message)
+        if refused:
+            return False, "The SMTP server did not accept the recipient address."
+        return True, "Accepted by SMTP; final delivery to the inbox is not confirmed."
+    finally:
+        try:
+            connection.quit()
+        except Exception:
+            connection.close()
+
+
+def verify_smtp_connection() -> tuple[bool, str]:
+    if not smtp_ready(require_enabled=False):
+        return False, "SMTP settings are incomplete."
+    connection = smtp_connection()
+    try:
+        code, _ = connection.noop()
+        if code != 250:
+            return False, "SMTP did not accept the connection check."
+        return True, "SMTP authentication succeeded. No email was sent."
+    finally:
+        try:
+            connection.quit()
+        except Exception:
+            connection.close()
+
+
 def taken_slots(doctor: str, visit_date: date) -> set[str]:
     with connect_db() as db:
         rows = db.execute(
@@ -312,7 +460,7 @@ def times_for(doctor: str, visit_date: date) -> list[str]:
     return slots
 
 
-def queue_messages(db: sqlite3.Connection, booking: dict) -> None:
+def queue_messages(db: sqlite3.Connection, booking: dict) -> str:
     now = datetime.now().astimezone()
     local_zone = now.tzinfo
     booking_date = booking["visit_date"]
@@ -325,27 +473,33 @@ def queue_messages(db: sqlite3.Connection, booking: dict) -> None:
         time.fromisoformat(booking["visit_time"]),
     ).replace(tzinfo=local_zone)
     reminder_at = visit_at - timedelta(hours=2)
+    confirmation_id = secrets.token_hex(12)
+    confirmation_status = "queued" if smtp_ready() else "simulated"
+    confirmation_note = "Waiting for immediate SMTP delivery." if confirmation_status == "queued" else "SMTP sender is not enabled; no email was sent."
     for kind, scheduled in (("booking_confirmation", now), ("appointment_reminder", reminder_at)):
         if kind == "appointment_reminder" and (not booking["reminder_consent"] or scheduled <= now):
             continue
+        message_id = confirmation_id if kind == "booking_confirmation" else secrets.token_hex(12)
+        status = confirmation_status if kind == "booking_confirmation" else "simulated"
+        note = confirmation_note if kind == "booking_confirmation" else "Reminder automation needs a persistent scheduled worker; no email was sent."
         db.execute(
             "INSERT INTO message_queue(id,booking_id,kind,recipient,scheduled_at,status,note,created_at) VALUES(?,?,?,?,?,?,?,?)",
-            (secrets.token_hex(12), booking["id"], kind, booking["email"], scheduled.isoformat(),
-             "simulated", "Preview only; connect and approve an email sender before live delivery.", now.isoformat()),
+            (message_id, booking["id"], kind, booking["email"], scheduled.isoformat(), status, note, now.isoformat()),
         )
+    return confirmation_id
 
 
-def save_booking(payload: dict) -> tuple[bool, str, str | None]:
+def save_booking(payload: dict) -> tuple[bool, str, str | None, str]:
     if not payload["name"].strip() or not payload["concern"].strip():
-        return False, "Enter your name and a short description of what you need help with.", None
+        return False, "Enter your name and a short description of what you need help with.", None, "not_sent"
     if "@" not in payload["email"] or "." not in payload["email"].rsplit("@", 1)[-1]:
-        return False, "Enter a valid email address.", None
+        return False, "Enter a valid email address.", None, "not_sent"
     roster = DOCTORS.get(payload["doctor"])
     when = datetime.combine(payload["visit_date"], time.fromisoformat(payload["visit_time"]))
     if not roster or roster["dept"] != payload["department"]:
-        return False, "Choose a doctor listed for this service.", None
+        return False, "Choose a doctor listed for this service.", None, "not_sent"
     if payload["visit_date"].weekday() not in roster["days"] or not roster["start"] <= when.hour < roster["end"] or when.minute not in (0, 30) or when <= datetime.now():
-        return False, "That doctor is not available at the selected time. Choose another open slot.", None
+        return False, "That doctor is not available at the selected time. Choose another open slot.", None, "not_sent"
 
     booking_id = "PT-" + secrets.token_hex(7).upper()
     code = "CD" + secrets.token_hex(5).upper()
@@ -357,11 +511,27 @@ def save_booking(payload: dict) -> tuple[bool, str, str | None]:
             db.execute("""INSERT INTO bookings
                 (id,confirmation_code,name,email,phone,age,concern,department,doctor,visit_date,visit_time,reminder_consent,outcome,created_at)
                 VALUES (:id,:confirmation_code,:name,:email,:phone,:age,:concern,:department,:doctor,:visit_date,:visit_time,:reminder_consent,:outcome,:created_at)""", record)
-            queue_messages(db, record)
+            confirmation_message_id = queue_messages(db, record)
             db.execute("INSERT INTO audit_log(booking_id,event,at) VALUES(?,?,?)", (booking_id, "Appointment booked through patient portal", now))
-        return True, "Your appointment is booked.", code
+        email_sent = False
+        email_note = "SMTP is not configured; no email was sent."
+        if smtp_ready():
+            email_sent, email_note = send_booking_confirmation(record)
+            with connect_db() as db:
+                db.execute(
+                    "UPDATE message_queue SET status=?, note=? WHERE id=?",
+                    ("sent" if email_sent else "failed", email_note, confirmation_message_id),
+                )
+        return True, "Your appointment is booked.", code, ("sent" if email_sent else "not_sent")
     except sqlite3.IntegrityError:
-        return False, "That time was just booked. Please choose another available slot.", None
+        return False, "That time was just booked. Please choose another available slot.", None, "not_sent"
+    except Exception:
+        with connect_db() as db:
+            db.execute(
+                "UPDATE message_queue SET status='failed', note='SMTP delivery failed; check the sender settings.' WHERE booking_id=? AND kind='booking_confirmation' AND status='queued'",
+                (booking_id,),
+            )
+        return True, "Your appointment is booked.", code, "failed"
 
 
 def staff_is_authorized() -> bool:
@@ -398,7 +568,13 @@ def booking_page() -> None:
         with st.container(border=True):
             st.success(f"Appointment request saved. Your confirmation code is **{result['code']}**.")
             st.write(f"{result['department']} · Dr. {result['doctor']} · {display_date(result['visit_date'])} at {result['visit_time']}")
-            st.info("Email confirmations and reminders are previews only on this demo site.")
+            if result.get("email_status") == "sent":
+                st.success("The confirmation email was accepted by the SMTP server. Check your inbox and spam folder; final delivery is not confirmed.")
+            elif result.get("email_status") == "failed":
+                st.warning("The appointment is booked, but the confirmation email could not be sent. Contact the clinic team for confirmation.")
+            else:
+                st.info("This app has no active SMTP sender, so no confirmation email was sent.")
+            st.caption("Appointment reminders are not sent automatically by this hosted demo.")
             if st.button("Book another appointment", type="primary"):
                 st.session_state.pop("booking_result", None)
                 st.session_state.pop("booking_payload", None)
@@ -483,15 +659,18 @@ def booking_page() -> None:
             st.session_state["booking_step"] = 2
             st.rerun()
         with st.form("confirm_booking_form"):
-            consent = st.checkbox("I agree to receive appointment reminders by email. I can withdraw consent later.")
-            st.caption("Messages are simulated in this demo; no email message will be sent.")
+            consent = st.checkbox("I agree to receive appointment reminders by email when the reminder service is available. I can withdraw consent later.")
+            if smtp_ready():
+                st.caption("A booking confirmation will be sent to the email address entered above. Reminders are not sent automatically by this hosted demo.")
+            else:
+                st.caption("Email sending is not configured; booking confirmations and reminders will remain previews.")
             st.caption("The service suggestion is for appointment routing only. Your clinician will assess your health concern during the visit.")
             confirm = st.form_submit_button("Confirm appointment", type="primary")
         if confirm:
             saved = {**payload, "reminder_consent": consent}
-            ok, message, code = save_booking(saved)
+            ok, message, code, email_status = save_booking(saved)
             if ok:
-                st.session_state["booking_result"] = {**saved, "code": code}
+                st.session_state["booking_result"] = {**saved, "code": code, "email_status": email_status}
                 st.rerun()
             st.error(message)
 
@@ -560,6 +739,18 @@ def clinic_page() -> None:
                 st.warning("Staff sign-in is not configured yet. Add clinic login credentials or configure Google OIDC and a staff email allowlist.")
         return
 
+    if smtp_ready(require_enabled=False):
+        smtp_is_enabled = bool(smtp_settings().get("send_enabled", False))
+        st.caption("Booking confirmation SMTP is " + ("enabled for new bookings." if smtp_is_enabled else "configured but sending is disabled."))
+        if st.button("Verify SMTP connection"):
+            try:
+                verified, detail = verify_smtp_connection()
+                st.success(detail) if verified else st.error(detail)
+            except Exception:
+                st.error("SMTP verification failed. Check the host, port, sender, and authentication settings in Streamlit Secrets.")
+    else:
+        st.info("SMTP is not configured. Add the [smtp] settings in Streamlit Secrets to send booking confirmations.")
+
     if st.session_state.get("clinic_password_authenticated") and st.button("Sign out", key="clinic_password_signout"):
         st.session_state.pop("clinic_password_authenticated", None)
         st.rerun()
@@ -610,7 +801,7 @@ def clinic_page() -> None:
         st.dataframe(messages, hide_index=True)
     else:
         st.caption("No messages are queued.")
-    st.warning("Email delivery and reminder scheduling are preview-only in this first Python build. Configure an approved provider and persistent hosted database before relying on them.")
+    st.warning("SMTP can send booking confirmations when configured. Appointment reminders still require a persistent scheduled worker and are not sent automatically by this hosted demo.")
 
 
 st.set_page_config(page_title="CareDesk | Kumar Clinic and Pharmacy", page_icon="🩺", layout="wide")
