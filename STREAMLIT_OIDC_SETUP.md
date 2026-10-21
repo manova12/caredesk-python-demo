@@ -33,6 +33,18 @@ Set `staff_emails` to only the Google account(s) authorized to open the clinic w
 
 After saving secrets, verify that an allowlisted account can sign in and that a different Google account is denied. If Google OAuth is in **Testing** mode, each staff account must also be listed as a test user in Google Auth Platform. The app uses Google identity for staff access only; this does not connect Gmail sending.
 
+## Optional clinic user ID and password
+
+The clinic page can also use one administrator-configured user ID and password. In **Manage app → Settings → Secrets**, add:
+
+```toml
+[clinic_login]
+username = "clinicadmin"
+password = "REPLACE_WITH_A_LONG_UNIQUE_PASSWORD"
+```
+
+Replace the example password with a long, unique password before saving. Keep it only in Streamlit Secrets or a password manager; do not commit it to GitHub or send it in chat. The password form appears after the app restarts. Google sign-in remains available as a separate method when Google OIDC is configured. This is one shared login, so it does not provide individual staff identities or an audit trail; use individual Google accounts for real clinic operations.
+
 ## Scope note
 
 This only enables sign-in and allowlist-based authorization for the clinic page. It does not migrate local patient records or make the hosted SQLite database durable. The current hosted app remains a synthetic-data demonstration until storage, privacy, and clinic operational requirements are separately addressed.

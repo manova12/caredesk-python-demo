@@ -365,6 +365,8 @@ def save_booking(payload: dict) -> tuple[bool, str, str | None]:
 
 
 def staff_is_authorized() -> bool:
+    if st.session_state.get("clinic_password_authenticated"):
+        return True
     try:
         if not st.user.is_logged_in:
             return False
@@ -522,8 +524,30 @@ def clinic_page() -> None:
     site_header(clinic_page=True)
     st.markdown('<div class="care-eyebrow">Restricted staff access</div><div class="care-section-title">Clinic team sign in</div>', unsafe_allow_html=True)
     if not staff_is_authorized():
+        try:
+            login_config = st.secrets.get("clinic_login", {})
+        except Exception:
+            login_config = {}
+        configured_username = str(login_config.get("username", "")).strip()
+        configured_password = str(login_config.get("password", ""))
+        password_login_enabled = bool(configured_username and configured_password)
+
         with st.container(border=True):
-            st.write("Sign in with an approved Google account configured by the clinic administrator.")
+            if password_login_enabled:
+                st.write("Sign in with your clinic team user ID and password.")
+                with st.form("clinic_password_login"):
+                    username = st.text_input("User ID", max_chars=120)
+                    password = st.text_input("Password", type="password", max_chars=256)
+                    submitted = st.form_submit_button("Sign in", type="primary")
+                if submitted:
+                    valid_user = secrets.compare_digest(username.strip(), configured_username)
+                    valid_password = secrets.compare_digest(password, configured_password)
+                    if valid_user and valid_password:
+                        st.session_state["clinic_password_authenticated"] = True
+                        st.rerun()
+                    st.error("The user ID or password is incorrect.")
+            else:
+                st.write("Sign in with an approved Google account configured by the clinic administrator.")
         try:
             if st.user.is_logged_in:
                 st.error("This Google account is not on the clinic staff allowlist.")
@@ -532,8 +556,13 @@ def clinic_page() -> None:
             elif st.button("Sign in with Google", type="primary"):
                 st.login("google")
         except Exception:
-            st.warning("Staff sign-in is not configured yet. Add the Streamlit Google OIDC settings and staff email allowlist before deployment.")
+            if not password_login_enabled:
+                st.warning("Staff sign-in is not configured yet. Add clinic login credentials or configure Google OIDC and a staff email allowlist.")
         return
+
+    if st.session_state.get("clinic_password_authenticated") and st.button("Sign out", key="clinic_password_signout"):
+        st.session_state.pop("clinic_password_authenticated", None)
+        st.rerun()
 
     st.markdown('<div class="care-section-title">Good morning, clinic team</div><p>Here’s your patient coordination overview.</p>', unsafe_allow_html=True)
     patients = get_patient_records()
