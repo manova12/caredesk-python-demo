@@ -281,8 +281,12 @@ def staff_is_authorized() -> bool:
     try:
         if not st.user.is_logged_in:
             return False
-        allowed = {email.strip().lower() for email in st.secrets.get("staff_emails", [])}
-        return bool(allowed) and str(st.user.email).lower() in allowed
+        configured = st.secrets.get("staff_emails", [])
+        if isinstance(configured, str):
+            configured = [configured]
+        allowed = {str(email).strip().casefold() for email in configured if str(email).strip()}
+        current_email = str(st.user.get("email", "")).strip().casefold()
+        return bool(current_email and current_email in allowed)
     except Exception:
         return False
 
@@ -437,6 +441,8 @@ def clinic_page() -> None:
         try:
             if st.user.is_logged_in:
                 st.error("This Google account is not on the clinic staff allowlist.")
+                if st.button("Sign out of this account"):
+                    st.logout()
             elif st.button("Sign in with Google", type="primary"):
                 st.login("google")
         except Exception:

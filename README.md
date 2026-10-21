@@ -27,6 +27,10 @@ Local bookings are stored in `data/caredesk.sqlite3`.
 
 ## Hosting note
 
-Streamlit Community Cloud deploys Python apps, but this local SQLite file is not a durable hosted database. Before public use, configure an external persistent database and add the Google OIDC and Gmail OAuth settings as deployment secrets. The clinic workspace is hidden unless `staff_emails` and `[auth]` / `[auth.google]` are configured. Do not commit secrets or real patient information.
+Streamlit Community Cloud deploys Python apps, but this local SQLite file is not a durable hosted database. The hosted clinic workspace uses Google OIDC and an email allowlist. A copyable, non-secret configuration template is in `.streamlit/secrets.toml.example`.
+
+Follow [STREAMLIT_OIDC_SETUP.md](STREAMLIT_OIDC_SETUP.md) to configure Google staff sign-in and the email allowlist.
+
+The hosted app starts with a separate SQLite database. On Streamlit Community Cloud, that file is not durable across all restarts/redeploys, so configure an external persistent database before relying on saved bookings. Do not commit real patient information.
 
 This is a synthetic-data demo, not approved for live clinical use. Doctor availability must be verified by the clinic, and live email requires sender authorization, consent, and operational review.
